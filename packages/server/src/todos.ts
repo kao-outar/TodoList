@@ -1,4 +1,4 @@
-import { readTodos, writeTodos } from './storage.js';
+const { readTodos, writeTodos } = require('./storage');
 
 interface Todo {
   id: string;
@@ -7,11 +7,11 @@ interface Todo {
   createdAt: string;
 }
 
-export async function getAllTodos(): Promise<Todo[]> {
+async function getAllTodos(): Promise<Todo[]> {
   return await readTodos();
 }
 
-export async function addTodo(text: string): Promise<Todo> {
+async function addTodo(text: string): Promise<Todo> {
   const todos = await readTodos() as Todo[];
   const newTodo: Todo = {
     id: Date.now().toString(),
@@ -24,7 +24,7 @@ export async function addTodo(text: string): Promise<Todo> {
   return newTodo;
 }
 
-export async function toggleTodo(id: string): Promise<Todo | undefined> {
+async function toggleTodo(id: string): Promise<Todo | undefined> {
   const todos = await readTodos() as Todo[];
   const todo = todos.find(t => t.id === id);
   if (todo) {
@@ -34,9 +34,16 @@ export async function toggleTodo(id: string): Promise<Todo | undefined> {
   return todo;
 }
 
-export async function deleteTodo(id: string): Promise<{ success: boolean }> {
+async function deleteTodo(id: string): Promise<{ success: boolean }> {
   const todos = await readTodos() as Todo[];
   const filtered = todos.filter(t => t.id !== id);
   await writeTodos(filtered);
   return { success: true };
 }
+
+module.exports = {
+  getAllTodos,
+  addTodo,
+  toggleTodo,
+  deleteTodo
+};
