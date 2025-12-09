@@ -1,0 +1,162 @@
+name: CI/CD Pipeline for Todo List
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  lint-commits:
+    name: Lint Commit Messages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: wagoid/commitlint-github-action@v5
+        with:
+          fail-on-error: true
+
+  code-lint:
+    name: Lint Code Quality
+    runs-on: ubuntu-latest
+    needs: lint-commits
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install and Lint client
+        run: |
+          echo "Installing and linting client..."
+          cd packages/client
+          npm install
+          npm run lint
+
+      - name: Install and Lint server
+        run: |
+          echo "Installing and linting server..."
+          cd packages/server
+          npm install
+          npm run lint
+
+  security-scan-npm:
+    name: NPM Audit Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install and Scan client dependencies
+        run: |
+          echo "Installing and scanning client dependencies..."
+          cd packages/client
+          npm install
+          npm audit --audit-level=high
+
+      - name: Install and Scan server dependencies
+        run: |
+          echo "Installing and scanning server dependencies..."
+          cd packages/server
+          npm install
+          npm audit --audit-level=high
+
+  test-unit-backend:
+    name: Backend Unit Tests
+    runs-on: ubuntu-latest
+    needs: [lint-commits, security-scan-npm]
+    steps:
+      - name: Run backend tests
+        run: echo "TODO: Mahalia will implement backend unit tests"
+
+  coverage:
+    name: Test Coverage
+    runs-on: ubuntu-latest
+    needs: test-unit-backend
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Check test coverage
+        run: echo "TODO: Check if test coverage is sufficient"
+
+  build-docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test-unit-backend
+    steps:
+      - name: Build and (on tag) push Docker image
+        run: echo "TODO: Build image on PR, push on tag"
+
+  security-scan-docker:
+    name: Docker Image Security Scan
+    runs-on: ubuntu-latest
+    needs: build-docker
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          # TODO: Replace 'alpine:latest' with the name of the image built in the 'build-docker' job
+          # For example: image-ref: 'your-dockerhub-username/todo-api:${{ github.sha }}'
+          image-ref: 'alpine:latest'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+  deploy-frontend:
+    name: Deploy Frontend
+    runs-on: ubuntu-latest
+    needs: build-docker # Depends on a successful build
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Deploy to Vercel/Netlify
+        run: echo "TODO: William will configure frontend deployment"
+
+  deploy-backend:
+    name: Deploy Backend
+    runs-on: ubuntu-latest
+    needs: build-docker # Depends on a successful build
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Deploy to Render
+        run: echo "TODO: Deploy the versioned Docker image to Render"
+
+  smoke-test:
+    name: Smoke Test
+    runs-on: ubuntu-latest
+    needs: [deploy-frontend, deploy-backend]
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Check if deployments are live
+        run: echo "TODO: Hit the frontend and backend URLs to confirm they are up"
