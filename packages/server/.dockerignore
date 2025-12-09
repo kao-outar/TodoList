@@ -1,0 +1,11 @@
+# Local dependencies
+node_modules
+dist
+.npm
+
+# Logs
+npm-debug.log
+
+# OS-specific
+.DS_Store
+

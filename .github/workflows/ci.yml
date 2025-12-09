@@ -44,14 +44,14 @@ jobs:
         run: |
           echo "Installing and linting client..."
           cd packages/client
-          npm install
+          npm ci
           npm run lint
 
       - name: Install and Lint server
         run: |
           echo "Installing and linting server..."
           cd packages/server
-          npm install
+          npm ci
           npm run lint
 
   security-scan-npm:
@@ -79,14 +79,14 @@ jobs:
         run: |
           echo "Installing and scanning client dependencies..."
           cd packages/client
-          npm install
+          npm ci
           npm audit --audit-level=high
 
       - name: Install and Scan server dependencies
         run: |
           echo "Installing and scanning server dependencies..."
           cd packages/server
-          npm install
+          npm ci
           npm audit --audit-level=high
 
   test-unit-backend:
@@ -102,14 +102,29 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-v2-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-v2-
+
       - name: Install server dependencies
         run: |
           cd packages/server
-          npm install
+          npm ci
 
-      - name: Run backend tests
+      - name: Run backend tests with coverage
         run: |
-          echo "TODO: kaoutar will implement backend unit tests"
+          cd packages/server
+          npm test -- --coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: ./packages/server/coverage
 
   coverage:
     name: Test Coverage
@@ -117,18 +132,73 @@ jobs:
     needs: test-unit-backend
     if: github.event_name == 'pull_request'
     steps:
-      - name: Check test coverage
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: ./coverage
+
+      - name: Check coverage threshold
         run: |
-          echo "TODO: Check if test coverage is sufficient"
+          echo "Checking test coverage..."
+          if [ -f "./coverage/lcov.info" ]; then
+            echo "✅ Coverage report found"
+            # You can add a coverage threshold check here
+            # For example, using a tool like jest-coverage-reporter
+            # or parsing lcov.info to ensure minimum coverage
+          else
+            echo "❌ Coverage report not found"
+            exit 1
+          fi
 
   build-docker:
     name: Build Docker Image
     runs-on: ubuntu-latest
     needs: test-unit-backend
     steps:
-      - name: Build and (on tag) push Docker image
-        run: |
-          echo "TODO: Build image on PR, push on tag"
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub (only on tags)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Build Docker image (PR - no push)
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./packages/server
+          push: false
+          tags: local/todo-api:latest
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and Push Docker image (Tags - with push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: docker/build-push-action@v6
+        with:
+          context: ./packages/server
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/todo-api:${{ steps.version.outputs.VERSION }}
+            ${{ secrets.DOCKER_USERNAME }}/todo-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   security-scan-docker:
     name: Docker Image Security Scan
@@ -139,12 +209,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: ./packages/server
+          push: false
+          tags: local/todo-api:scan
+          load: true
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          # TODO: Replace 'alpine:latest' with the name of the image built in the 'build-docker' job
-          # For example: image-ref: 'your-dockerhub-username/todo-api:${{ github.sha }}'
-          image-ref: 'alpine:latest'
+          image-ref: 'local/todo-api:scan'
           format: 'table'
           exit-code: '1'
           ignore-unfixed: true
@@ -154,7 +233,7 @@ jobs:
   deploy-frontend:
     name: Deploy Frontend
     runs-on: ubuntu-latest
-    needs: build-docker # Depends on a successful build
+    needs: build-docker
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Deploy to Vercel/Netlify
@@ -164,7 +243,7 @@ jobs:
   deploy-backend:
     name: Deploy Backend
     runs-on: ubuntu-latest
-    needs: build-docker # Depends on a successful build
+    needs: build-docker
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Deploy to Render

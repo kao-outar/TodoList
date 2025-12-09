@@ -1,30 +1,27 @@
-import { readFile, writeFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+const fs = require('fs/promises');
+const path = require('path');
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, './data');
-const TODOS_FILE = join(DATA_DIR, 'todos.json');
+// After compilation, __dirname will be /dist, so we go up one level.
+const dataPath = path.join(__dirname, '..', 'data', 'todos.json');
 
-async function ensureDataDir() {
-  if (!existsSync(DATA_DIR)) {
-    await mkdir(DATA_DIR, { recursive: true });
+async function readTodos() {
+  try {
+    const data = await fs.readFile(dataPath, 'utf-8');
+    return JSON.parse(data);
+  } catch (error: any) {
+    // If the file doesn't exist, return an empty array
+    if (error.code === 'ENOENT') {
+      return [];
+    }
+    throw error;
   }
 }
 
-export async function readTodos() {
-  await ensureDataDir();
-
-  if (!existsSync(TODOS_FILE)) {
-    return [];
-  }
-
-  const data = await readFile(TODOS_FILE, 'utf-8');
-  return JSON.parse(data);
+async function writeTodos(todos: any[]) {
+  await fs.writeFile(dataPath, JSON.stringify(todos, null, 2));
 }
 
-export async function writeTodos(todos: unknown[]) {
-  await ensureDataDir();
-  await writeFile(TODOS_FILE, JSON.stringify(todos, null, 2), 'utf-8');
-}
+module.exports = {
+  readTodos,
+  writeTodos
+};

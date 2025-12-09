@@ -1,24 +1,31 @@
 {
   "name": "todo-server",
   "version": "1.0.0",
-  "type": "module",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "lint": "oxlint --fix",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest"
   },
   "dependencies": {
+    "@sentry/node": "^10.29.0",
+    "@sentry/profiling-node": "^10.29.0",
     "cors": "^2.8.5",
-    "express": "^4.19.2",
-    "ts-node": "^10.9.2"
+    "express": "^4.19.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.12.12",
-    "typescript": "^5.4.5",
-    "oxlint": "^0.4.0"
+    "@types/supertest": "^6.0.3",
+    "jest": "^30.2.0",
+    "oxlint": "^0.4.0",
+    "supertest": "^7.1.4",
+    "ts-jest": "^29.4.6",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.4.5"
   }
 }
