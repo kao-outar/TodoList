@@ -21,7 +21,7 @@ Ce projet contient une application "Todo List" (client + serveur) dotée d'une p
 - **Observabilité** : Sentry est intégré pour le suivi des erreurs et le profiling.
 
 ### Frontend
-- **Framework** : React avec Vite
+- **Framework** : Vue + Vite
 - **Langage** : TypeScript
 - **Style** : Tailwind CSS
 
@@ -99,5 +99,6 @@ Si la version `v1.0.2` que nous venons de déployer est buggée, pour revenir à
 ---
 
 ## 📸 Preuve Sentry
+
 
 
