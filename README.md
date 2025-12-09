@@ -100,5 +100,8 @@ Si la version `v1.0.2` que nous venons de déployer est buggée, pour revenir à
 
 ## 📸 Preuve Sentry
 
+<img width="1580" height="261" alt="image" src="https://github.com/user-attachments/assets/a34d4001-21f9-4d76-8fe3-bf94c90c4d7e" />
+
+
 
 
