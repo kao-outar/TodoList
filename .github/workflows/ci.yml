@@ -176,19 +176,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Build Docker image (PR - no push)
-        if: github.event_name == 'pull_request'
-        uses: docker/build-push-action@v6
-        with:
-          context: ./packages/server
-          push: false
-          tags: local/todo-api:latest
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and Push Docker image (Tags - with push)
+      
+      - name: Build and Push Docker image (Tags)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: docker/build-push-action@v6
         with:
@@ -200,30 +189,42 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build Docker image for scanning (PRs)
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./packages/server
+          push: false
+          # Save image to a tarball
+          outputs: type=docker,dest=/tmp/image.tar
+          tags: local/todo-api:scan # Tag is still useful for local reference
+          load: false # Do not load into docker daemon, just save to tar
+
+      # On pull requests, save the built image as an artifact for the scan job.
+      - name: Upload Docker image for scanning
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-tar
+          path: /tmp/image.tar
+
   security-scan-docker:
     name: Docker Image Security Scan
     runs-on: ubuntu-latest
     needs: build-docker
     if: github.event_name == 'pull_request'
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image for scanning
-        uses: docker/build-push-action@v6
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@v4
         with:
-          context: ./packages/server
-          push: false
-          tags: local/todo-api:scan
-          load: true
+          name: docker-image-tar
+          path: /tmp
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'local/todo-api:scan'
+          # Scan the local tarball instead of an image name
+          image-ref: 'file:///tmp/image.tar'
           format: 'table'
           exit-code: '1'
           ignore-unfixed: true
