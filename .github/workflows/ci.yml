@@ -44,14 +44,14 @@ jobs:
         run: |
           echo "Installing and linting client..."
           cd packages/client
-          npm install
+          npm ci
           npm run lint
 
       - name: Install and Lint server
         run: |
           echo "Installing and linting server..."
           cd packages/server
-          npm install
+          npm ci
           npm run lint
 
   security-scan-npm:
@@ -79,14 +79,14 @@ jobs:
         run: |
           echo "Installing and scanning client dependencies..."
           cd packages/client
-          npm install
+          npm ci
           npm audit --audit-level=high
 
       - name: Install and Scan server dependencies
         run: |
           echo "Installing and scanning server dependencies..."
           cd packages/server
-          npm install
+          npm ci
           npm audit --audit-level=high
 
   test-unit-backend:
@@ -105,7 +105,7 @@ jobs:
       - name: Install server dependencies
         run: |
           cd packages/server
-          npm install
+          npm ci
 
       - name: Run backend tests
         run: |
