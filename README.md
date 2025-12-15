@@ -79,6 +79,83 @@ Ce projet contient une application "Todo List" (client + serveur) dotée d'une p
     ```
 
 ---
+## 🐳 Docker
+
+Le projet utilise Docker et Docker Compose pour orchestrer les services backend et frontend.
+
+### Prérequis
+
+- Docker Desktop installé et en cours d'exécution
+- Docker Compose (inclus avec Docker Desktop)
+
+### Architecture Docker
+
+Le projet contient deux services Docker :
+
+- **server** : API backend Express.js (TypeScript) sur le port 3001
+- **client** : Frontend Vue avec nginx sur le port 3000
+
+### Construction et démarrage
+
+**Première fois / Après modifications :**
+```bash
+docker-compose up --build
+```
+
+**Démarrer en arrière-plan :**
+```bash
+docker-compose up -d --build
+```
+
+### Services disponibles
+
+Une fois les conteneurs démarrés, les services sont accessibles sur :
+
+- **Backend API**: http://localhost:3001
+- **Frontend**: http://localhost:3000
+
+Le frontend est configuré avec un proxy nginx qui redirige les requêtes `/api` vers le backend.
+
+### Commandes utiles
+
+```bash
+# Démarrer les services
+docker-compose up -d
+
+# Arrêter les services
+docker-compose down
+
+# Voir les logs
+docker-compose logs -f
+
+# Reconstruire les images
+docker-compose build --no-cache
+
+# Redémarrer un service spécifique
+docker-compose restart server
+docker-compose restart client
+```
+
+### Structure des Dockerfiles
+
+**Backend** (`packages/server/Dockerfile`) :
+- Build multi-stage optimisé
+- Stage 1 : Compilation TypeScript
+- Stage 2 : Image de production avec uniquement les dépendances nécessaires
+- Port exposé : 3001
+
+**Frontend** (`packages/client/Dockerfile`) :
+- Build multi-stage
+- Stage 1 : Build de l'application Vue avec Vite
+- Stage 2 : Serveur nginx pour servir les fichiers statiques
+- Configuration nginx avec proxy vers le backend
+- Port exposé : 80 (mappé sur 3000)
+
+### Volumes
+
+Le dossier `packages/server/src/data` est monté comme volume pour persister les données des todos entre les redémarrages des conteneurs.
+
+---
 
 ## 🔄 Stratégie de Rollback
 

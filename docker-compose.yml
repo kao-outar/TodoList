@@ -1,0 +1,31 @@
+services:
+  server:
+    build:
+      context: ./packages/server
+      dockerfile: Dockerfile
+    container_name: todo-server
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+    volumes:
+      - ./packages/server/src/data:/app/dist/data
+    networks:
+      - todo-network
+
+  client:
+    build:
+      context: ./packages/client
+      dockerfile: Dockerfile
+    container_name: todo-client
+    ports:
+      - "3000:80"
+    depends_on:
+      - server
+    networks:
+      - todo-network
+
+networks:
+  todo-network:
+    driver: bridge
+

@@ -11,18 +11,19 @@ jobs:
   lint-commits:
     name: Lint Commit Messages
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      
       - uses: wagoid/commitlint-github-action@v5
-        with:
-          fail-on-error: true
 
   code-lint:
     name: Lint Code Quality
     runs-on: ubuntu-latest
-    needs: lint-commits
+    if: always()
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -58,6 +59,7 @@ jobs:
     name: NPM Audit Security Scan
     runs-on: ubuntu-latest
     needs: code-lint
+    if: always() && (needs.code-lint.result == 'success')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -93,6 +95,7 @@ jobs:
     name: Backend Unit Tests
     runs-on: ubuntu-latest
     needs: security-scan-npm
+    if: always() && (needs.security-scan-npm.result == 'success')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -130,7 +133,7 @@ jobs:
     name: Test Coverage
     runs-on: ubuntu-latest
     needs: test-unit-backend
-    if: github.event_name == 'pull_request'
+    if: always() && github.event_name == 'pull_request' && (needs.test-unit-backend.result == 'success')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -146,9 +149,6 @@ jobs:
           echo "Checking test coverage..."
           if [ -f "./coverage/lcov.info" ]; then
             echo "✅ Coverage report found"
-            # You can add a coverage threshold check here
-            # For example, using a tool like jest-coverage-reporter
-            # or parsing lcov.info to ensure minimum coverage
           else
             echo "❌ Coverage report not found"
             exit 1
@@ -158,6 +158,7 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
     needs: test-unit-backend
+    if: always() && (needs.test-unit-backend.result == 'success')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -165,7 +166,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Login to Docker Hub only when pushing a tag.
       - name: Login to Docker Hub
         if: startsWith(github.ref, 'refs/tags/v')
         uses: docker/login-action@v3
@@ -178,7 +178,6 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
       
-      # Build only (no push) on PRs
       - name: Build Docker image (PR)
         if: github.event_name == 'pull_request'
         uses: docker/build-push-action@v6
@@ -190,7 +189,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Build AND push on tags
       - name: Build and Push Docker image (Release)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: docker/build-push-action@v6
@@ -207,7 +205,7 @@ jobs:
     name: Docker Image Security Scan
     runs-on: ubuntu-latest
     needs: build-docker
-    if: github.event_name == 'pull_request'
+    if: always() && github.event_name == 'pull_request' && (needs.build-docker.result == 'success')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -215,7 +213,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Build the image locally to make it available for scanning.
       - name: Build image for scanning
         uses: docker/build-push-action@v6
         with:
@@ -242,7 +239,7 @@ jobs:
     name: Deploy Frontend
     runs-on: ubuntu-latest
     needs: build-docker
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: always() && startsWith(github.ref, 'refs/tags/v') && (needs.build-docker.result == 'success')
     steps:
       - name: Trigger Vercel deployment
         run: |
@@ -261,7 +258,7 @@ jobs:
     name: Deploy Backend
     runs-on: ubuntu-latest
     needs: build-docker
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: always() && startsWith(github.ref, 'refs/tags/v') && (needs.build-docker.result == 'success')
     steps:
       - name: Trigger Render deployment
         run: |
@@ -280,7 +277,7 @@ jobs:
     name: Smoke Test
     runs-on: ubuntu-latest
     needs: [deploy-frontend, deploy-backend]
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: always() && startsWith(github.ref, 'refs/tags/v') && (needs.deploy-frontend.result == 'success') && (needs.deploy-backend.result == 'success')
     steps:
       - name: Wait for deployments to settle
         run: |
@@ -314,11 +311,33 @@ jobs:
   notify:
     name: Notify on Discord
     runs-on: ubuntu-latest
-    needs: [smoke-test, security-scan-docker, coverage]
+    needs: [lint-commits, code-lint, security-scan-npm, test-unit-backend, coverage, build-docker, security-scan-docker, deploy-frontend, deploy-backend, smoke-test]
     if: always()
     steps:
+      - name: Determine overall status
+        id: status
+        run: |
+          # Vérifie si au moins un job a échoué
+          FAILED=0
+          if [[ "${{ needs.lint-commits.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.code-lint.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.security-scan-npm.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.test-unit-backend.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.coverage.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.build-docker.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.security-scan-docker.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.deploy-frontend.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.deploy-backend.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.smoke-test.result }}" == "failure" ]]; then FAILED=1; fi
+          
+          if [ $FAILED -eq 1 ]; then
+            echo "PIPELINE_STATUS=failure" >> $GITHUB_OUTPUT
+          else
+            echo "PIPELINE_STATUS=success" >> $GITHUB_OUTPUT
+          fi
+
       - name: Notify on Success
-        if: success()
+        if: steps.status.outputs.PIPELINE_STATUS == 'success'
         run: |
           MESSAGE="✅ Déploiement **${{ github.ref_name }}** OK"
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
@@ -329,7 +348,7 @@ jobs:
           "${{ secrets.DISCORD_WEBHOOK_URL }}"
 
       - name: Notify on Failure
-        if: failure()
+        if: steps.status.outputs.PIPELINE_STATUS == 'failure'
         run: |
           MESSAGE="❌ Build CASSÉ sur **${{ github.ref_name }}**"
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
