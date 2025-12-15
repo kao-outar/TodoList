@@ -311,11 +311,33 @@ jobs:
   notify:
     name: Notify on Discord
     runs-on: ubuntu-latest
-    needs: [smoke-test, security-scan-docker, coverage]
+    needs: [lint-commits, code-lint, security-scan-npm, test-unit-backend, coverage, build-docker, security-scan-docker, deploy-frontend, deploy-backend, smoke-test]
     if: always()
     steps:
+      - name: Determine overall status
+        id: status
+        run: |
+          # Vérifie si au moins un job a échoué
+          FAILED=0
+          if [[ "${{ needs.lint-commits.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.code-lint.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.security-scan-npm.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.test-unit-backend.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.coverage.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.build-docker.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.security-scan-docker.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.deploy-frontend.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.deploy-backend.result }}" == "failure" ]]; then FAILED=1; fi
+          if [[ "${{ needs.smoke-test.result }}" == "failure" ]]; then FAILED=1; fi
+          
+          if [ $FAILED -eq 1 ]; then
+            echo "PIPELINE_STATUS=failure" >> $GITHUB_OUTPUT
+          else
+            echo "PIPELINE_STATUS=success" >> $GITHUB_OUTPUT
+          fi
+
       - name: Notify on Success
-        if: success()
+        if: steps.status.outputs.PIPELINE_STATUS == 'success'
         run: |
           MESSAGE="✅ Déploiement **${{ github.ref_name }}** OK"
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
@@ -326,7 +348,7 @@ jobs:
           "${{ secrets.DISCORD_WEBHOOK_URL }}"
 
       - name: Notify on Failure
-        if: failure()
+        if: steps.status.outputs.PIPELINE_STATUS == 'failure'
         run: |
           MESSAGE="❌ Build CASSÉ sur **${{ github.ref_name }}**"
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
