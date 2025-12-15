@@ -11,15 +11,13 @@ jobs:
   lint-commits:
     name: Lint Commit Messages
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      
       - uses: wagoid/commitlint-github-action@v5
-        with:
-          fail-on-error: true
-          from: origin/main
-          to: HEAD
 
   code-lint:
     name: Lint Code Quality
