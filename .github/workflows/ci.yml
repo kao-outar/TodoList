@@ -18,6 +18,8 @@ jobs:
       - uses: wagoid/commitlint-github-action@v5
         with:
           fail-on-error: true
+          from: origin/main
+          to: HEAD
 
   code-lint:
     name: Lint Code Quality
